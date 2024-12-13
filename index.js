@@ -1,13 +1,15 @@
 const express = require("express");
 const { PrismaClient } = require("@prisma/client");
 const cors = require("cors")
-
+const QuizStart = require("./routes/QuizStart")
 const app = express();
 const prisma = new PrismaClient();
+
 
 // Middleware
 app.use(cors()); // Allows requests from the frontend
 app.use(express.json());
+app.use(QuizStart);
 
 // Route to fetch all data from class6math
 app.get("/class6maths/algebra", async (req, res) => {
@@ -22,6 +24,14 @@ app.get("/class6maths/algebra", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch data" });
   }
 });
+
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
+
 app.get("/class6math/random", async (req, res) => {
   try {
     const randomQuestions = await prisma.$queryRaw`
@@ -36,11 +46,4 @@ app.get("/class6math/random", async (req, res) => {
     console.error("Error fetching random Algebra questions:", error.message);
     res.status(500).json({ error: "Failed to fetch random questions" });
   }
-});
-
-
-// Start the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
 });
