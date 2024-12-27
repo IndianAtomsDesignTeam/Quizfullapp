@@ -1,7 +1,9 @@
 const express = require("express");
 const { PrismaClient } = require("@prisma/client");
 const cors = require("cors")
-const QuizStart = require("./routes/QuizStart")
+const QuizStart = require("./routes/QuizStart");
+const authRouter = require('./routes/authRouter');
+
 const app = express();
 const prisma = new PrismaClient();
 
@@ -9,6 +11,7 @@ const prisma = new PrismaClient();
 // Middleware
 app.use(cors()); // Allows requests from the frontend
 app.use(express.json());
+app.use(authRouter);
 app.use(QuizStart);
 
 // Route to fetch all data from class6math

@@ -27,13 +27,30 @@ exports.quizStart = async (req, res)=>{
       }
   
       if (step === 3 && selectedClass && subjectName && topicName) {
-        const topics = await prisma.curriculum.findMany({
-          where: { className: selectedClass, subjectName: subjectName },
-          distinct: ['topicName'],
-          select: { topicName: true },
+        const questions = await prisma.question.findMany({
+          where: {
+            class: selectedClass,
+            subject: subjectName,
+            topic: topicName,
+          },
+          take: 20, // Fetch only 20 questions
+          orderBy: {
+            id: 'asc', // Optional: Fetches questions in ascending order by ID (can be adjusted)
+          },
         });
-        return res.json(topics);
+      
+        // If no questions are found, return an appropriate response
+        if (questions.length === 0) {
+          return res.status(404).json({ success: false, message: 'No questions found for the specified criteria.' });
+        }
+      
+        // Return the questions
+        return res.json({
+          success: true,
+          questions,
+        });
       }
+      
   
       // If step is not valid or required fields are missing
       res.status(400).json({ error: "Invalid step or missing required fields." });
