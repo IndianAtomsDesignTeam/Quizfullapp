@@ -101,7 +101,7 @@ model curriculum {
   @@unique([className, subjectName, topicName]) // Ensure no duplicate entries for the same class, subject, and topic
 }
 
-model Question {
+model question {
   id           Int    @id @default(autoincrement())
   qno          Int
   question     String
