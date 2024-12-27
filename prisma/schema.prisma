@@ -115,36 +115,36 @@ model question {
   topic        String
   class        String
   subject      String
-  userQuestions UserQuestion[] // Relation to track user attempts
+  userQuestions userQuestion[] // Relation to track user attempts
 }
 
-model Session {
+model session {
   id         Int       @id @default(autoincrement())
   userId     String    // Foreign key to the User model
-  user       User      @relation(fields: [userId], references: [id])
+  user       user      @relation(fields: [userId], references: [id])
   createdAt  DateTime  @default(now()) // Timestamp for session creation
-  questions  UserQuestion[] // Relation to UserQuestion
+  questions  userQuestion[] // Relation to UserQuestion
 }
 
-model UserQuestion {
+model userQuestion {
   id         Int       @id @default(autoincrement())
   sessionId  Int       // Foreign key to the Session model
   questionId Int       // Foreign key to the Question model
   userId     String    // Foreign key to the User model
   isCorrect  Boolean?  // Nullable until the question is answered
 
-  question   Question  @relation(fields: [questionId], references: [id])
-  session    Session   @relation(fields: [sessionId], references: [id])
-  user       User      @relation(fields: [userId], references: [id])
+  question   question  @relation(fields: [questionId], references: [id])
+  session    session   @relation(fields: [sessionId], references: [id])
+  user       user      @relation(fields: [userId], references: [id])
 }
 
-model User {
+model user {
   id        String   @id @default(uuid()) // Primary key with UUID as default
   name      String   @db.VarChar(100)
   email     String   @unique @db.VarChar(100)
   password  String   @db.VarChar(100)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  sessions  Session[]       // Relation to sessions
-  userQuestions UserQuestion[] // Relation to user questions
+  sessions  session[]       // Relation to sessions
+  userQuestions userQuestion[] // Relation to user questions
 }
