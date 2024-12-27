@@ -8,8 +8,6 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
-        
-
 
 // This is for local db (DEEPAK)
 // datasource db {
@@ -24,74 +22,74 @@ datasource db {
 //   created_at DateTime @default(now())
 // }
 
-
-model class6math{
-  id Int @id @default(autoincrement())  
-  qno Int
-  question String
-  optiona String
-  optionb String
-  optionc String
-  optiond String
-  answer String
+model class6math {
+  id           Int    @id @default(autoincrement())
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
   explaination String
-  toughness String
-  topic String
-}
-model class6science{
-  id Int @id @default(autoincrement())  
-  qno Int
-  question String
-  optiona String
-  optionb String
-  optionc String
-  optiond String
-  answer String
-  explaination String
-  toughness String
-  topic String
+  toughness    String
+  topic        String
 }
 
-model class6socialscience{
-  id Int @id @default(autoincrement())  
-  qno Int
-  question String
-  optiona String
-  optionb String
-  optionc String
-  optiond String
-  answer String
+model class6science {
+  id           Int    @id @default(autoincrement())
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
   explaination String
-  toughness String
-  topic String
+  toughness    String
+  topic        String
 }
 
-model class7science{
-  id Int @id @default(autoincrement())  
-  qno Int
-  question String
-  optiona String
-  optionb String
-  optionc String
-  optiond String
-  answer String
+model class6socialscience {
+  id           Int    @id @default(autoincrement())
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
   explaination String
-  toughness String
-  topic String
+  toughness    String
+  topic        String
 }
 
-model class7math{
-  id Int @id @default(autoincrement())  
-  qno Int
-  question String
-  optiona String
-  optionb String
-  optionc String
-  optiond String
-  answer String
+model class7science {
+  id           Int    @id @default(autoincrement())
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
   explaination String
-  toughness String
-  topic String
+  toughness    String
+  topic        String
+}
+
+model class7math {
+  id           Int    @id @default(autoincrement())
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
+  explaination String
+  toughness    String
+  topic        String
 }
 
 model curriculum {
@@ -101,4 +99,52 @@ model curriculum {
   topicName   String // Topic name (e.g., "Algebra")
 
   @@unique([className, subjectName, topicName]) // Ensure no duplicate entries for the same class, subject, and topic
+}
+
+model Question {
+  id           Int    @id @default(autoincrement())
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
+  explaination String
+  toughness    String
+  topic        String
+  class        String
+  subject      String
+  userQuestions UserQuestion[] // Relation to track user attempts
+}
+
+model Session {
+  id         Int       @id @default(autoincrement())
+  userId     String    // Foreign key to the User model
+  user       User      @relation(fields: [userId], references: [id])
+  createdAt  DateTime  @default(now()) // Timestamp for session creation
+  questions  UserQuestion[] // Relation to UserQuestion
+}
+
+model UserQuestion {
+  id         Int       @id @default(autoincrement())
+  sessionId  Int       // Foreign key to the Session model
+  questionId Int       // Foreign key to the Question model
+  userId     String    // Foreign key to the User model
+  isCorrect  Boolean?  // Nullable until the question is answered
+
+  question   Question  @relation(fields: [questionId], references: [id])
+  session    Session   @relation(fields: [sessionId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id        String   @id @default(uuid()) // Primary key with UUID as default
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(100)
+  password  String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions  Session[]       // Relation to sessions
+  userQuestions UserQuestion[] // Relation to user questions
 }
