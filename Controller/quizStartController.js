@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 exports.quizStart = async (req, res)=>{
     try {
-      const { step, selectedClass, subjectName, topicName } = req.body;
+      const { step, selectedClass, subjectName, topicName, difficulty } = req.body;
   
       // Step 1: Fetch subjects based on selected class
       if (step === 1 && selectedClass) {
@@ -26,12 +26,13 @@ exports.quizStart = async (req, res)=>{
         return res.json(topics);
       }
   
-      if (step === 3 && selectedClass && subjectName && topicName) {
+      if (step === 3 && selectedClass && subjectName && topicName && difficulty) {
         const questions = await prisma.question.findMany({
           where: {
             class: selectedClass,
             subject: subjectName,
             topic: topicName,
+            toughness: difficulty,
           },
           take: 20, // Fetch only 20 questions
           orderBy: {
@@ -52,7 +53,7 @@ exports.quizStart = async (req, res)=>{
       }
       
   
-      // If step is not valid or required fields are missing
+        // If step is not valid or required fields are missing
       res.status(400).json({ error: "Invalid step or missing required fields." });
     } catch (error) {
       console.error("Error processing quizStart request:", error.message);
