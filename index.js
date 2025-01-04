@@ -27,14 +27,6 @@ app.use(QuizStart);
 //     res.status(500).json({ error: "Failed to fetch data" });
 //   }
 // });
-
-
-// Start the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
-
 // app.get("/class6math/random", async (req, res) => {
 //   try {
 //     const randomQuestions = await prisma.$queryRaw`
@@ -109,4 +101,10 @@ app.get("/data", async(req, res)=>{
     message: "Internal Server Error",
   });
 }
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
