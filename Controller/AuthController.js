@@ -1,59 +1,74 @@
-const { PrismaClient } = require("@prisma/client");
 const jwt = require("jsonwebtoken");
-const Prisma = new PrismaClient();
 const bcrypt = require("bcrypt");
+const { validationResult } = require("express-validator");
+const { PrismaClient } = require("@prisma/client");
+require("dotenv").config();
+
+const prisma = new PrismaClient();
 
 const signup = async (req, res) => {
-  try {
-    const {
-      name,
-      email,
-      class: studentClass,
-      number,
-      dream,
-      school,
-      password,
-    } = req.body;
+  // Validate the request body
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
 
-    const user = await Prisma.user.findFirst({
-      where: {
-        OR: [{ email: email }, { number: number }],
-      },
+  const { name, email, password, studentClass, dream, school, number } = req.body;
+
+  try {
+    // Check if the user already exists
+    const existingUser = await prisma.user.findFirst({
+      where: { email: email },
     });
 
-    if (user) {
+    if (existingUser) {
       return res.status(409).json({
-        message: "User Already Exists",
         success: false,
+        message: "User already exists",
       });
     }
 
-    // Hash the password using bcrypt
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create the new user
-    const newUser = await Prisma.user.create({
+    // Create a new user
+    const newUser = await prisma.user.create({
       data: {
         name,
         email,
-        class: studentClass, // Use 'studentClass' if 'class' is reserved
+        studentClass,
+        password: hashedPassword,
         number,
         dream,
         school,
-        password: hashedPassword,
       },
     });
 
+    // Generate JWT
+    const token = jwt.sign(
+      { id: newUser.id, email: newUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    // Respond with the user details and JWT
     res.status(201).json({
-      message: "User registered successfully!",
       success: true,
-      user: { id: newUser.id, name: newUser.name, email: newUser.email },
+      message: "User registered successfully",
+      token: token,
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        studentClass: newUser.studentClass,
+        dream: newUser.dream,
+        number: newUser.number,
+        school: newUser.school,
+      },
     });
   } catch (error) {
     console.error("Error during signup:", error);
     res.status(500).json({
-      message: "Error while saving Data",
       success: false,
       error: error.message, // Include the error message for debugging
     });
@@ -61,59 +76,58 @@ const signup = async (req, res) => {
 };
 
 const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    console.log("Email:", email, "Password:", password);
+  const { email, password } = req.body;
 
-    // Fetch user
+  try {
+    // Check if the user exists
     const user = await prisma.user.findFirst({
       where: { email: email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        password: true, // Include password for comparison
-      },
     });
-    console.log("Fetched User:", user);
 
-    const errorMsg = "Login Failed! Password or Email is Wrong";
     if (!user) {
       return res.status(401).json({
-        message: errorMsg,
         success: false,
+        message: "Invalid email or password",
       });
     }
 
-    // Compare password
-    const comparePassword = await bcrypt.compare(password, user.password);
-    if (!comparePassword) {
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
       return res.status(401).json({
-        message: errorMsg,
         success: false,
+        message: "Invalid email or password",
       });
     }
 
     // Generate JWT
     const jwtToken = jwt.sign(
-      { email: user.email, _id: user.id },
+      { id: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: "5h" }
+      { expiresIn: "24h" }
     );
-    console.log("JWT Token:", jwtToken);
 
-    // Send success response
     res.status(200).json({
-      message: "Login Successful",
       success: true,
-      jwtToken,
-      email: user.email,
-      name: user.name,
+      message: "Login successful",
+      token: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        studentClass: user.studentClass,
+        dream: user.dream,
+        school: user.school,
+      },
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error during login:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
 };
 
-module.exports = {
-  signup,
-  login,
-};
+module.exports = { login, signup };

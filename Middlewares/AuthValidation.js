@@ -1,6 +1,8 @@
 const Joi = require("joi");
 
 const signupValidation = (req, res, next) => {
+  console.log("Request body:", req.body);
+  
   const schema = Joi.object({
     name: Joi.string()
       .trim()
@@ -25,7 +27,7 @@ const signupValidation = (req, res, next) => {
         "any.required": '"email" is required',
       }),
 
-    class: Joi.string()
+    studentClass: Joi.string()
       .valid("6", "7", "8", "9", "10", "11", "12")
       .allow(null) // Optional
       .messages({
@@ -98,25 +100,18 @@ const signupValidation = (req, res, next) => {
 
 const loginValidation = (req, res, next) => {
   const schema = Joi.object({
-    email: Joi.string()
-      .email()
-      .required()
-      .messages({
-        "string.empty": '"email" cannot be empty',
-        "string.email": '"email" must be a valid email address',
-        "any.required": '"email" is required',
-      }),
+    email: Joi.string().email().required().messages({
+      "string.empty": '"email" cannot be empty',
+      "string.email": '"email" must be a valid email address',
+      "any.required": '"email" is required',
+    }),
 
-    password: Joi.string()
-      .min(4)
-      .max(50)
-      .required()
-      .messages({
-        "string.empty": '"password" cannot be empty',
-        "string.min": '"password" must be at least 4 characters long',
-        "string.max": '"password" must not exceed 50 characters',
-        "any.required": '"password" is required',
-      }),
+    password: Joi.string().min(4).max(50).required().messages({
+      "string.empty": '"password" cannot be empty',
+      "string.min": '"password" must be at least 4 characters long',
+      "string.max": '"password" must not exceed 50 characters',
+      "any.required": '"password" is required',
+    }),
   });
 
   const { error } = schema.validate(req.body);
