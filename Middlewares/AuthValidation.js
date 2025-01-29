@@ -21,6 +21,9 @@ const signupValidation = (req, res, next) => {
     email: Joi.string()
       .email({ tlds: { allow: true } })
       .required()
+      .custom((value, helpers) => {
+        return value.toLowerCase().trim();
+      })
       .messages({
         "string.empty": '"email" cannot be empty',
         "string.email": '"email" must be a valid email address',

@@ -13,7 +13,8 @@ const signup = async (req, res) => {
     return res.status(400).json({ success: false, errors: errors.array() });
   }
 
-  const { name, email, password, studentClass, dream, school, number } = req.body;
+  const { name, email, password, studentClass, dream, school, number } =
+    req.body;
 
   try {
     // Check if the user already exists
@@ -104,8 +105,8 @@ const login = async (req, res) => {
     const jwtToken = jwt.sign(
       { id: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" }
-    );
+      { expiresIn: "30d" } // 30 days
+    ); 
 
     res.status(200).json({
       success: true,
