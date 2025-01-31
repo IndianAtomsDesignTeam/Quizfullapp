@@ -6,13 +6,16 @@ exports.quizResult = async (req, res) => {
     const { userId } = req.body; // Get userId from req.body
 
     if (!userId) {
-      return res.status(400).json({ success: false, message: "User ID is required." });
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required.",
+      });
     }
 
-    // Get the latest submitted session for the user
+    // ✅ Get the latest submitted session for the user
     const latestSession = await prisma.session.findFirst({
       where: { userId, submitted: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         questions: {
           include: {
@@ -23,12 +26,21 @@ exports.quizResult = async (req, res) => {
     });
 
     if (!latestSession) {
-      return res.status(404).json({ success: false, message: "No quiz results found for the user." });
+      return res.status(404).json({
+        success: false,
+        message: "No quiz results found for the user.",
+      });
     }
 
-    // Format the questions with user answers and correctness
-    const formattedQuestions = latestSession.questions.map((q, index) => ({
-      qno: index + 1,
+    // ✅ Sort questions in ascending order based on `questionId`
+    const sortedQuestions = latestSession.questions.sort(
+      (a, b) => a.question.id - b.question.id
+    );
+
+    // ✅ Format the questions properly
+    const formattedQuestions = sortedQuestions.map((q, index) => ({
+      questionId: q.question.id, // ✅ Use original questionId, not `qId`
+      qno: index + 1, // Ensure the numbering is correct
       question: q.question.question,
       options: {
         A: q.question.optiona,
@@ -38,10 +50,10 @@ exports.quizResult = async (req, res) => {
       },
       correctAnswer: q.question.answer,
       userAnswer: q.userAnswer || "Not Answered",
-      isCorrect: q.isCorrect,
+      isCorrect: q.isCorrect ?? false, // Default false if not answered
     }));
 
-    // Return the formatted result
+    // ✅ Return the formatted quiz result
     return res.json({
       success: true,
       sessionId: latestSession.id,
