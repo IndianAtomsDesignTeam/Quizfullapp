@@ -1,6 +1,6 @@
 const express = require("express");
-const verifyToken = require("../Middlewares/Authentication")
+// const verifyToken = require("../Middlewares/Authentication")
 const router = express.Router();
 const { submitAnswers } = require("../Controller/submitQuizController");
-router.post("/submitQuiz", verifyToken, submitAnswers); 
+router.post("/submitQuiz",  submitAnswers); 
 module.exports = router;    
