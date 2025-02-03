@@ -2,144 +2,127 @@ const { PrismaClient } = require("@prisma/client");
 const jwt = require("jsonwebtoken");
 const prisma = new PrismaClient();
 
+// ✅ Helper: Validate Token
+const validateToken = (token, userId) => {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.id !== userId) {
+      throw new Error("Unauthorized: Invalid token for this user.");
+    }
+    return true;
+  } catch (error) {
+    throw new Error("Unauthorized: Invalid token.");
+  }
+};
+
+// ✅ Helper: Fetch Questions
+const fetchQuestions = async (selectedClass, subjectName, topicName, difficulty, limit = 20) => {
+  const questions = await prisma.$queryRaw`
+    SELECT * FROM "question"
+    WHERE "class" = ${selectedClass}
+      AND "subject" = ${subjectName}
+      AND "topic" = ${topicName}
+      AND "toughness" = ${difficulty}
+    ORDER BY RANDOM()  -- ✅ Randomize at the database level
+    LIMIT ${limit};     -- ✅ Fetch only the required number of questions
+  `;
+
+  if (questions.length === 0) {
+    throw new Error("No questions found for the specified criteria.");
+  }
+
+  return questions; // Already randomized
+};
+
+
+// ✅ Helper: Format Questions
+const formatQuestions = (questions) =>
+  questions.map((q, index) => ({
+    qno: index + 1,
+    id: q.id,
+    question: q.question,
+    optiona: q.optiona,
+    optionb: q.optionb,
+    optionc: q.optionc,
+    optiond: q.optiond,
+  }));
+
+// ✅ Controller: Quiz Start
 exports.quizStart = async (req, res) => {
   try {
     const { step, selectedClass, subjectName, topicName, difficulty, title, userId, token } = req.body;
 
-    // Step 1: Fetch subjects based on selected class
-    if (step === 1 && selectedClass) {
-      const subjects = await prisma.curriculum.findMany({
-        where: { className: selectedClass },
-        distinct: ['subjectName'],
-        select: { subjectName: true },
-      });
-      return res.json(subjects);
-    }
-
-    // Step 2: Fetch topics based on selected class and subject
-    if (step === 2 && selectedClass && subjectName) {
-      const topics = await prisma.curriculum.findMany({
-        where: { className: selectedClass, subjectName },
-        distinct: ['topicName'],
-        select: { topicName: true },
-      });
-      return res.json(topics);
-    }
-
-    // Step 3: Fetch questions and create a session
-    if (step === 3 && selectedClass && subjectName && topicName && difficulty && title) {
-      
-      // ✅ 1. Logged-in User Flow
-      if (userId) {
-        try {
-          const decoded = jwt.verify(token, process.env.JWT_SECRET);
-          if (decoded.id !== userId) {
-            return res.status(403).json({
-              success: false,
-              message: "Unauthorized: Invalid token for this user.",
-            });
-          }
-        } catch (error) {
-          return res.status(401).json({
-            success: false,
-            message: "Unauthorized: Invalid token.",
-          });
+    switch (step) {
+      case 1:
+        if (!selectedClass) {
+          return res.status(400).json({ error: "Class is required for Step 1." });
         }
-
-        const questions = await prisma.question.findMany({
-          where: {
-            class: selectedClass,
-            subject: subjectName,
-            topic: topicName,
-            toughness: difficulty,
-          },
-          take: 20,
-          orderBy: { id: 'asc' },
+        const subjects = await prisma.curriculum.findMany({
+          where: { className: selectedClass },
+          distinct: ["subjectName"],
+          select: { subjectName: true },
         });
+        return res.json(subjects);
 
-        if (questions.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: "No questions found for the specified criteria.",
-          });
+      case 2:
+        if (!selectedClass || !subjectName) {
+          return res.status(400).json({ error: "Class and Subject are required for Step 2." });
+        }
+        const topics = await prisma.curriculum.findMany({
+          where: { className: selectedClass, subjectName },
+          distinct: ["topicName"],
+          select: { topicName: true },
+        });
+        return res.json(topics);
+
+      case 3:
+        if (!selectedClass || !subjectName || !topicName || !difficulty || !title) {
+          return res.status(400).json({ error: "Missing required fields for Step 3." });
         }
 
-        const session = await prisma.session.create({
-          data: {
-            userId,
-            questions: {
-              create: questions.map((q) => ({
-                questionId: q.id,
-                userId: userId,
-              })),
+        const questions = await fetchQuestions(selectedClass, subjectName, topicName, difficulty);
+        let session;
+
+        // ✅ 1. Logged-in User Flow
+        if (userId) {
+          validateToken(token, userId);
+
+          session = await prisma.session.create({
+            data: {
+              userId,
+              questions: {
+                create: questions.map((q) => ({
+                  questionId: q.id,
+                  userId,
+                })),
+              },
             },
-          },
-        });
+          });
+        }
+        // ✅ 2. Guest User Flow
+        else {
+          session = await prisma.guestSession.create({
+            data: {
+              guestQuestions: {
+                create: questions.map((q) => ({
+                  questionId: q.id,
+                })),
+              },
+            },
+          });
+        }
 
         return res.json({
           success: true,
           sessionId: session.id,
-          questions: questions.map((q, index) => ({
-            qno: index + 1,
-            id: q.id,
-            question: q.question,
-            optiona: q.optiona,
-            optionb: q.optionb,
-            optionc: q.optionc,
-            optiond: q.optiond,
-          })),
-        });
-      }
-
-      // ✅ 2. Guest User Flow (No guestId required)
-      if (!userId) {
-        const questions = await prisma.question.findMany({
-          where: {
-            class: selectedClass,
-            subject: subjectName,
-            topic: topicName,
-            toughness: difficulty,
-          },
-          take: 20,
-          orderBy: { id: 'asc' },
+          questions: formatQuestions(questions),
         });
 
-        if (questions.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: "No questions found for the specified criteria.",
-          });
-        }
-
-        const guestSession = await prisma.guestSession.create({
-          data: {
-            guestQuestions: {
-              create: questions.map((q) => ({
-                questionId: q.id,
-              })),
-            },
-          },
-        });
-
-        return res.json({
-          success: true,
-          sessionId: guestSession.id,
-          questions: questions.map((q, index) => ({
-            qno: index + 1,
-            id: q.id,
-            question: q.question,
-            optiona: q.optiona,
-            optionb: q.optionb,
-            optionc: q.optionc,
-            optiond: q.optiond,
-          })),
-        });
-      }
+      default:
+        return res.status(400).json({ error: "Invalid step." });
     }
-
-    res.status(400).json({ error: "Invalid step or missing required fields." });
   } catch (error) {
-    console.error("Error processing quizStart request:", error.message);
-    res.status(500).json({ error: "Failed to process request." });
+    console.error("❌ Error processing quizStart:", error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
