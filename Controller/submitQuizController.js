@@ -3,81 +3,114 @@ const prisma = new PrismaClient();
 
 exports.submitAnswers = async (req, res) => {
   try {
-    const { sessionId, userId, answers } = req.body;
+    const { sessionId, userId, answers, timeTaken } = req.body;
 
-    if (!sessionId || !userId || !answers || !Array.isArray(answers)) {
+    if (!sessionId || !answers || !Array.isArray(answers)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid input. Session ID, user ID, and answers are required.",
+        message: "Invalid input. Session ID and answers are required.",
       });
     }
 
-    // Fetch the session and validate it exists
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
-    });
-
-    if (!session || session.userId !== userId) {
-      return res.status(404).json({
+    if (typeof timeTaken !== "number" || timeTaken < 0) {
+      return res.status(400).json({
         success: false,
-        message: "Session not found or does not belong to the user.",
+        message: "Invalid timeTaken value. It must be a positive number (in seconds).",
       });
     }
 
-    // Check if the session is already submitted
-    if (session.submitted) {
-      return res.status(400).json({
-        success: false,
-        message: "Quiz has already been submitted for this session.",
+    let session;
+
+    // ✅ 1. Handling Submission for Logged-in Users
+    if (userId) {
+      session = await prisma.session.findUnique({
+        where: { id: sessionId },
       });
+
+      if (!session || session.userId !== userId) {
+        return res.status(404).json({
+          success: false,
+          message: "Session not found or does not belong to the user.",
+        });
+      }
+
+      if (session.submitted) {
+        return res.status(400).json({
+          success: false,
+          message: "Quiz has already been submitted for this session.",
+        });
+      }
+    } 
+    // ✅ 2. Handling Submission for Guest Users
+    else {
+      session = await prisma.guestSession.findUnique({
+        where: { id: sessionId },
+      });
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          message: "Guest session not found.",
+        });
+      }
+
+      if (session.submitted) {
+        return res.status(400).json({
+          success: false,
+          message: "Quiz has already been submitted for this guest session.",
+        });
+      }
     }
 
     let correctCount = 0;
     let incorrectCount = 0;
 
-    // Process each answer
+    // ✅ Process each answer
     const updates = answers.map(async (answer) => {
-      console.log("Received answer object:", answer);
-
-      const questionId = answer.questionId; // ✅ Use questionId instead of qno
-      const userAnswer = answer.userAnswer;
+      const { questionId, userAnswer } = answer;
 
       if (!questionId) {
         console.error("❌ Missing questionId in answer object:", answer);
         return;
       }
 
-      // Fetch the userQuestion entry
-      const userQuestion = await prisma.userQuestion.findFirst({
-        where: {
-          sessionId,
-          userId,
-          questionId, // ✅ Use questionId
-        },
-        include: { question: true },
-      });
+      // Fetch the corresponding userQuestion or guestUserQuestion
+      const questionEntry = userId
+        ? await prisma.userQuestion.findFirst({
+            where: { sessionId, userId, questionId },
+            include: { question: true },
+          })
+        : await prisma.guestUserQuestion.findFirst({
+            where: { sessionId, questionId },
+            include: { question: true },
+          });
 
-      if (!userQuestion) {
+      if (!questionEntry) {
         console.error(`❌ Invalid questionId: ${questionId}`);
         return;
       }
 
-      // Check if the answer is correct (Ensure userAnswer is valid)
-      const isCorrect = userAnswer !== null && userAnswer === userQuestion.question.answer;
+      // Check correctness
+      const isCorrect = userAnswer !== null && userAnswer === questionEntry.question.answer;
 
-      // Update userQuestion with the selected answer and correctness
-      await prisma.userQuestion.update({
-        where: { id: userQuestion.id },
-        data: {
-          userAnswer: userAnswer !== undefined ? userAnswer : null, // Ensure null storage
-          isCorrect: isCorrect || false, // Default false if incorrect or null
-        },
-      });
+      // ✅ Update userQuestion or guestUserQuestion
+      await (userId
+        ? prisma.userQuestion.update({
+            where: { id: questionEntry.id },
+            data: {
+              userAnswer: userAnswer !== undefined ? userAnswer : null,
+              isCorrect: isCorrect || false,
+            },
+          })
+        : prisma.guestUserQuestion.update({
+            where: { id: questionEntry.id },
+            data: {
+              userAnswer: userAnswer !== undefined ? userAnswer : null,
+              isCorrect: isCorrect || false,
+            },
+          }));
 
-      // Log update results
-      console.log(`✅ Updated Q${questionId}: userAnswer = ${userAnswer}, isCorrect = ${isCorrect}`);
-
-      // Update counters
+      // ✅ Update counters
       if (isCorrect) {
         correctCount++;
       } else {
@@ -88,21 +121,26 @@ exports.submitAnswers = async (req, res) => {
     // Wait for all updates to complete
     await Promise.all(updates);
 
-    // Mark the session as submitted
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: { submitted: true },
-    });
+    // ✅ Mark the session as submitted and store timeTaken
+    await (userId
+      ? prisma.session.update({
+          where: { id: sessionId },
+          data: { submitted: true, timeTaken: timeTaken },
+        })
+      : prisma.guestSession.update({
+          where: { id: sessionId },
+          data: { submitted: true, timeTaken: timeTaken },
+        }));
 
-    // Return results
+    // ✅ Return the results
     return res.json({
       success: true,
       sessionId,
       correctCount,
       incorrectCount,
       totalQuestions: answers.length,
+      timeTaken, // Include time taken in the response
     });
-
   } catch (error) {
     console.error("❌ Error submitting quiz:", error);
     res.status(500).json({
@@ -112,3 +150,4 @@ exports.submitAnswers = async (req, res) => {
     });
   }
 };
+  
