@@ -38,7 +38,7 @@
 ```
 
 ```http
-  POST /quizSubmit
+  POST /submitQuiz
 ```
 ```http
       {
@@ -153,7 +153,7 @@
 ```
 
 ```http
-  POST /quizSubmit
+  POST /submitQuiz
 ```
 ```http
       {
