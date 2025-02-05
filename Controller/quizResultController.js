@@ -2,17 +2,46 @@ const { PrismaClient } = require("@prisma/client");
 const jwt = require("jsonwebtoken");
 const prisma = new PrismaClient();
 
-//Helper: Sort Questions by questionId
+// Helper: Sort Questions by questionId
 const sortQuestions = (questions) => {
   return questions.sort((a, b) => a.question.id - b.question.id);
 };
 
+// Helper Functions for Metrics Calculation
+const calculateStreak = (questions) => {
+  let maxStreak = 0, currentStreak = 0;
+  questions.forEach((q) => {
+    if (q.isCorrect) {
+      currentStreak++;
+      maxStreak = Math.max(maxStreak, currentStreak);
+    } else {
+      currentStreak = 0;
+    }
+  });
+  return maxStreak;
+};
+
+const calculateAccuracy = (correctAnswers, totalQuestions) => {
+  return ((correctAnswers / totalQuestions) * 100).toFixed(2);
+};
+
+const calculateAchievement = (accuracy, streak) => {
+  const bonus = streak >= 5 ? 5 : 0;
+  return (parseFloat(accuracy) + bonus).toFixed(2);
+};
+
+const calculatePace = (totalQuestions, timeTakenInSeconds) => {
+  const timeInMinutes = timeTakenInSeconds / 60;
+  return (totalQuestions / timeInMinutes).toFixed(2);
+};
+
+// Controller: Quiz Result
 exports.quizResult = async (req, res) => {
   try {
     const { userId, token, sessionId } = req.body;
     let session, questions, sessionType;
 
-    //1. For Logged-in Users
+    // 1. For Logged-in Users
     if (userId && token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       if (decoded.id !== userId) {
@@ -32,7 +61,7 @@ exports.quizResult = async (req, res) => {
       sessionType = "session";
     }
 
-    //2. For Guest Users
+    // 2. For Guest Users
     if (sessionId && !userId) {
       session = await prisma.guestSession.findFirst({
         where: { id: sessionId, submitted: true },
@@ -50,10 +79,57 @@ exports.quizResult = async (req, res) => {
       return res.status(400).json({ success: false, message: "User ID with token or Session ID is required." });
     }
 
-    //Apply Sorting
+    // Check if Metrics Already Exist
+    if (session.streak !== null && session.pace !== null && session.achievement !== null && session.accuracy !== null) {
+      return res.json({
+        success: true,
+        sessionId: session.id,
+        createdAt: session.createdAt,
+        totalQuestions: questions.length,
+        streak: session.streak,
+        pace: session.pace,
+        achievement: session.achievement,
+        accuracy: session.accuracy,
+        questions: sortQuestions(questions).map((q, index) => ({
+          questionId: q.question.id,
+          qno: index + 1,
+          question: q.question.question,
+          options: {
+            A: q.question.optiona,
+            B: q.question.optionb,
+            C: q.question.optionc,
+            D: q.question.optiond,
+          },
+          correctAnswer: q.question.answer,
+          userAnswer: q.userAnswer || "Not Answered",
+          isCorrect: q.isCorrect ?? false,
+        })),
+      });
+    }
+
+    // Apply Sorting
     const sortedQuestions = sortQuestions(questions);
 
-    //Format Questions for Response
+    // Calculate Metrics if Not Stored Yet
+    const correctAnswers = sortedQuestions.filter((q) => q.isCorrect).length;
+    const totalQuestions = sortedQuestions.length;
+    const streak = calculateStreak(sortedQuestions);
+    const accuracy = calculateAccuracy(correctAnswers, totalQuestions);
+    const achievement = calculateAchievement(accuracy, streak);
+    const pace = calculatePace(totalQuestions, session.timeTaken || 600); // Default to 10 mins if time not provided
+
+    // Store Metrics in DB
+    await prisma[sessionType].update({
+      where: { id: session.id },
+      data: {
+        streak,
+        pace: parseFloat(pace),
+        achievement: parseFloat(achievement),
+        accuracy: parseFloat(accuracy),
+      },
+    });
+
+    // Format Questions for Response
     const formattedQuestions = sortedQuestions.map((q, index) => ({
       questionId: q.question.id,
       qno: index + 1,
@@ -71,9 +147,14 @@ exports.quizResult = async (req, res) => {
 
     return res.json({
       success: true,
+      message: "Metrics calculated and stored successfully.",
       sessionId: session.id,
       createdAt: session.createdAt,
-      totalQuestions: formattedQuestions.length,
+      totalQuestions,
+      streak,
+      pace: `${pace} questions/min`,
+      achievement,
+      accuracy: `${accuracy}%`,
       questions: formattedQuestions,
     });
   } catch (error) {
