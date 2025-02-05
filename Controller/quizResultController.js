@@ -2,12 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const jwt = require("jsonwebtoken");
 const prisma = new PrismaClient();
 
-// Helper: Sort Questions by questionId
-const sortQuestions = (questions) => {
-  return questions.sort((a, b) => a.question.id - b.question.id);
-};
-
-// Helper Functions for Metrics Calculation
+// ✅ Helper Functions
 const calculateStreak = (questions) => {
   let maxStreak = 0, currentStreak = 0;
   questions.forEach((q) => {
@@ -35,13 +30,17 @@ const calculatePace = (totalQuestions, timeTakenInSeconds) => {
   return (totalQuestions / timeInMinutes).toFixed(2);
 };
 
-// Controller: Quiz Result
+const sortQuestions = (questions) => {
+  return questions.sort((a, b) => a.question.id - b.question.id);
+};
+
+// ✅ Controller: Quiz Result
 exports.quizResult = async (req, res) => {
   try {
     const { userId, token, sessionId } = req.body;
     let session, questions, sessionType;
 
-    // 1. For Logged-in Users
+    // ✅ 1. For Logged-in Users
     if (userId && token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       if (decoded.id !== userId) {
@@ -61,7 +60,7 @@ exports.quizResult = async (req, res) => {
       sessionType = "session";
     }
 
-    // 2. For Guest Users
+    // ✅ 2. For Guest Users
     if (sessionId && !userId) {
       session = await prisma.guestSession.findFirst({
         where: { id: sessionId, submitted: true },
@@ -79,7 +78,7 @@ exports.quizResult = async (req, res) => {
       return res.status(400).json({ success: false, message: "User ID with token or Session ID is required." });
     }
 
-    // Check if Metrics Already Exist
+    // ✅ Check if Metrics Already Exist
     if (session.streak !== null && session.pace !== null && session.achievement !== null && session.accuracy !== null) {
       return res.json({
         success: true,
@@ -101,24 +100,25 @@ exports.quizResult = async (req, res) => {
             D: q.question.optiond,
           },
           correctAnswer: q.question.answer,
+          explanation: q.question.explaination,  // ✅ Added Explanation
           userAnswer: q.userAnswer || "Not Answered",
           isCorrect: q.isCorrect ?? false,
         })),
       });
     }
 
-    // Apply Sorting
+    // ✅ Apply Sorting
     const sortedQuestions = sortQuestions(questions);
 
-    // Calculate Metrics if Not Stored Yet
+    // ✅ Calculate Metrics if Not Stored Yet
     const correctAnswers = sortedQuestions.filter((q) => q.isCorrect).length;
     const totalQuestions = sortedQuestions.length;
     const streak = calculateStreak(sortedQuestions);
     const accuracy = calculateAccuracy(correctAnswers, totalQuestions);
     const achievement = calculateAchievement(accuracy, streak);
-    const pace = calculatePace(totalQuestions, session.timeTaken || 600); // Default to 10 mins if time not provided
+    const pace = calculatePace(totalQuestions, session.timeTaken || 600); // Default to 10 mins if not provided
 
-    // Store Metrics in DB
+    // ✅ Store Metrics in DB
     await prisma[sessionType].update({
       where: { id: session.id },
       data: {
@@ -129,7 +129,7 @@ exports.quizResult = async (req, res) => {
       },
     });
 
-    // Format Questions for Response
+    // ✅ Format Questions for Response
     const formattedQuestions = sortedQuestions.map((q, index) => ({
       questionId: q.question.id,
       qno: index + 1,
@@ -141,6 +141,7 @@ exports.quizResult = async (req, res) => {
         D: q.question.optiond,
       },
       correctAnswer: q.question.answer,
+      explanation: q.question.explaination,  // ✅ Added Explanation
       userAnswer: q.userAnswer || "Not Answered",
       isCorrect: q.isCorrect ?? false,
     }));
@@ -152,9 +153,9 @@ exports.quizResult = async (req, res) => {
       createdAt: session.createdAt,
       totalQuestions,
       streak,
-      pace: `${pace} questions/min`,
+      pace,
       achievement,
-      accuracy: `${accuracy}%`,
+      accuracy,
       questions: formattedQuestions,
     });
   } catch (error) {
