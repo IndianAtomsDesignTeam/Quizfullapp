@@ -1,126 +1,80 @@
 const { PrismaClient } = require("@prisma/client");
-const jwt = require("jsonwebtoken"); // To verify token
+const jwt = require("jsonwebtoken");
 const prisma = new PrismaClient();
+
+//Helper: Sort Questions by questionId
+const sortQuestions = (questions) => {
+  return questions.sort((a, b) => a.question.id - b.question.id);
+};
 
 exports.quizResult = async (req, res) => {
   try {
-    const { userId, token, sessionId } = req.body; // Get userId, token, and sessionId
+    const { userId, token, sessionId } = req.body;
+    let session, questions, sessionType;
 
-    // ✅ 1. For Logged-in Users (If userId and token are provided)
+    //1. For Logged-in Users
     if (userId && token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-          if (decoded.id !== userId) {
-            return res.status(403).json({
-              success: false,
-              message: "Unauthorized: Invalid token for this user.",
-            });
-          }
-
-      } catch (error) {
-        return res.status(401).json({
-          success: false,
-          message: "Unauthorized: Invalid token.",
-        });
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.id !== userId) {
+        return res.status(403).json({ success: false, message: "Unauthorized: Invalid token for this user." });
       }
 
-      // ✅ Fetch the latest submitted session for the user
-      const latestSession = await prisma.session.findFirst({
+      session = await prisma.session.findFirst({
         where: { userId, submitted: true },
         orderBy: { createdAt: "desc" },
-        include: {
-          questions: {
-            include: {
-              question: true,
-            },
-          },
-        },
+        include: { questions: { include: { question: true } } },
       });
 
-      if (!latestSession) {
-        return res.status(404).json({
-          success: false,
-          message: "No quiz results found for the user.",
-        });
+      if (!session) {
+        return res.status(404).json({ success: false, message: "No quiz results found for the user." });
       }
-
-      // ✅ Sort and Format Questions
-      const formattedQuestions = latestSession.questions
-        .sort((a, b) => a.question.id - b.question.id)
-        .map((q, index) => ({
-          questionId: q.question.id,
-          qno: index + 1,
-          question: q.question.question,
-          options: {
-            A: q.question.optiona,
-            B: q.question.optionb,
-            C: q.question.optionc,
-            D: q.question.optiond,
-          },
-          correctAnswer: q.question.answer,
-          userAnswer: q.userAnswer || "Not Answered",
-          isCorrect: q.isCorrect ?? false,
-        }));
-
-      return res.json({
-        success: true,
-        sessionId: latestSession.id,
-        createdAt: latestSession.createdAt,
-        totalQuestions: formattedQuestions.length,
-        questions: formattedQuestions,
-      });
+      questions = session.questions;
+      sessionType = "session";
     }
 
-    // ✅ 2. For Guest Users (If sessionId is provided)
-    if (sessionId) {
-      const guestSession = await prisma.guestSession.findFirst({
+    //2. For Guest Users
+    if (sessionId && !userId) {
+      session = await prisma.guestSession.findFirst({
         where: { id: sessionId, submitted: true },
-        include: {
-          guestQuestions: {
-            include: {
-              question: true,
-            },
-          },
-        },
+        include: { guestQuestions: { include: { question: true } } },
       });
 
-      if (!guestSession) {
-        return res.status(404).json({
-          success: false,
-          message: "No quiz results found for the guest user.",
-        });
+      if (!session) {
+        return res.status(404).json({ success: false, message: "No quiz results found for the guest user." });
       }
-
-      const formattedQuestions = guestSession.guestQuestions
-        .sort((a, b) => a.question.id - b.question.id)
-        .map((q, index) => ({
-          questionId: q.question.id,
-          qno: index + 1,
-          question: q.question.question,
-          options: {
-            A: q.question.optiona,
-            B: q.question.optionb,
-            C: q.question.optionc,
-            D: q.question.optiond,
-          },
-          correctAnswer: q.question.answer,
-          userAnswer: q.userAnswer || "Not Answered",
-          isCorrect: q.isCorrect ?? false,
-        }));
-
-      return res.json({
-        success: true,
-        sessionId: guestSession.id,
-        createdAt: guestSession.createdAt,
-        totalQuestions: formattedQuestions.length,
-        questions: formattedQuestions,
-      });
+      questions = session.guestQuestions;
+      sessionType = "guestSession";
     }
 
-    // ❌ If neither userId/token nor sessionId is provided
-    return res.status(400).json({
-      success: false,
-      message: "User ID with token or Session ID is required.",
+    if (!session || !questions) {
+      return res.status(400).json({ success: false, message: "User ID with token or Session ID is required." });
+    }
+
+    //Apply Sorting
+    const sortedQuestions = sortQuestions(questions);
+
+    //Format Questions for Response
+    const formattedQuestions = sortedQuestions.map((q, index) => ({
+      questionId: q.question.id,
+      qno: index + 1,
+      question: q.question.question,
+      options: {
+        A: q.question.optiona,
+        B: q.question.optionb,
+        C: q.question.optionc,
+        D: q.question.optiond,
+      },
+      correctAnswer: q.question.answer,
+      userAnswer: q.userAnswer || "Not Answered",
+      isCorrect: q.isCorrect ?? false,
+    }));
+
+    return res.json({
+      success: true,
+      sessionId: session.id,
+      createdAt: session.createdAt,
+      totalQuestions: formattedQuestions.length,
+      questions: formattedQuestions,
     });
   } catch (error) {
     console.error("Error fetching quiz result:", error.message);

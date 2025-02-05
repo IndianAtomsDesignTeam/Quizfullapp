@@ -8,10 +8,7 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-//////////////////////
-// 🚀 User Model
-//////////////////////
-
+// User Model
 model user {
   id            String         @id @default(uuid())
   name          String         @db.VarChar(100)
@@ -23,18 +20,14 @@ model user {
   number        String         @db.VarChar(15)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-
-  // ✅ Relations
+  // Relations
   quizzes       quiz[]                                          
   sessions      session[]       @relation("UserSessions")        // Relation to user's quiz sessions
   userQuestions userQuestion[]                                   
 }
 
 
-//////////////////////
 // 📋 Question Model (Shared for Both Users)
-//////////////////////
-
 model question {
   id             Int                @id @default(autoincrement()) // Unique question ID
   qno            Int
@@ -55,10 +48,7 @@ model question {
   guestQuestions guestUserQuestion[]                             // Relation to guest user answers
 }
 
-//////////////////////
 // 📝 Quiz Model (For Logged-in Users)
-//////////////////////
-
 model quiz {
   id         String    @id @default(uuid())
   title      String?
@@ -67,30 +57,26 @@ model quiz {
   isPublic   Boolean   @default(false)                    // For guest-accessible quizzes
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-
   // Relation
   user       user?     @relation(fields: [userId], references: [id])
 }
 
-//////////////////////
-// 📊 Session Model (For Logged-in Users)
-//////////////////////
-
-
+//Session Model (For Logged-in Users)
 model session {
-  id          String    @id @default(uuid())
-  submitted   Boolean   @default(false)
-  userId      String
-  timeTaken   Int?
-  createdAt   DateTime   @default(now())
-
-  // ✅ Add the missing relation field
-  user        user       @relation(fields: [userId], references: [id], name: "UserSessions")
-  questions   userQuestion[]
+  id            String    @id @default(uuid())
+  submitted     Boolean   @default(false)
+  userId        String
+  timeTaken     Int?       // 
+  streak        Int?       // 
+  pace          Float?     // 
+  achievement   Float?     // 
+  accuracy      Float?     // 
+  createdAt     DateTime   @default(now())
+   user        user       @relation(fields: [userId], references: [id], name: "UserSessions")
+  questions     userQuestion[]
 }
 
 // ✅ User Question Model (For Logged-in Users)
-
 model userQuestion {
   id         Int       @id @default(autoincrement())
   sessionId  String                                             // Foreign key to session
@@ -98,7 +84,6 @@ model userQuestion {
   userId     String                                             // Foreign key to user
   userAnswer String?                                            // Nullable for unanswered questions
   isCorrect  Boolean?                                           // Nullable until evaluated
-
   // Relations
   question   question   @relation(fields: [questionId], references: [id])
   session    session    @relation(fields: [sessionId], references: [id])
@@ -106,20 +91,15 @@ model userQuestion {
 }
 
 // 📚 Curriculum Model (For Structuring Quizzes)
-//////////////////////
-
 model curriculum {
   id          Int    @id @default(autoincrement())
   className   String
   subjectName String
   topicName   String
-
   @@unique([className, subjectName, topicName])                 // Prevent duplicate topics
 }
 
-//////////////////////
 // 👤 Guest User Models (For Not Logged-in Users)
-//////////////////////
 
 // Guest Session Table
 model guestSession {
@@ -127,7 +107,6 @@ model guestSession {
   submitted     Boolean   @default(false)
   timeTaken     Int?                                         // ⏱️ Track time taken for guests
   createdAt     DateTime   @default(now())
-
   // Relation
   guestQuestions guestUserQuestion[]
 }
@@ -139,7 +118,6 @@ model guestUserQuestion {
   questionId  Int                                               // Foreign key to question
   userAnswer  String?                                           // Nullable initially
   isCorrect   Boolean?                                          // Nullable until evaluated
-
   // Relations
   session     guestSession @relation(fields: [sessionId], references: [id])
   question    question     @relation(fields: [questionId], references: [id])

@@ -2,7 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const jwt = require("jsonwebtoken");
 const prisma = new PrismaClient();
 
-// ✅ Helper: Validate Token
+//Helper: Validate Token
 const validateToken = (token, userId) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -15,7 +15,7 @@ const validateToken = (token, userId) => {
   }
 };
 
-// ✅ Helper: Fetch Questions
+//Helper: Fetch Random Questions
 const fetchQuestions = async (selectedClass, subjectName, topicName, difficulty, limit = 20) => {
   const questions = await prisma.$queryRaw`
     SELECT * FROM "question"
@@ -23,19 +23,19 @@ const fetchQuestions = async (selectedClass, subjectName, topicName, difficulty,
       AND "subject" = ${subjectName}
       AND "topic" = ${topicName}
       AND "toughness" = ${difficulty}
-    ORDER BY RANDOM()  -- ✅ Randomize at the database level
-    LIMIT ${limit};     -- ✅ Fetch only the required number of questions
+    ORDER BY RANDOM()  -- Randomize the selection
+    LIMIT ${limit};
   `;
 
   if (questions.length === 0) {
     throw new Error("No questions found for the specified criteria.");
   }
 
-  return questions; // Already randomized
+  //Sort questions in ascending order by ID before storing
+  return questions.sort((a, b) => a.id - b.id);
 };
 
-
-// ✅ Helper: Format Questions
+//Helper: Format Questions for Response
 const formatQuestions = (questions) =>
   questions.map((q, index) => ({
     qno: index + 1,
@@ -47,7 +47,7 @@ const formatQuestions = (questions) =>
     optiond: q.optiond,
   }));
 
-// ✅ Controller: Quiz Start
+//Controller: Quiz Start
 exports.quizStart = async (req, res) => {
   try {
     const { step, selectedClass, subjectName, topicName, difficulty, title, userId, token } = req.body;
@@ -80,10 +80,11 @@ exports.quizStart = async (req, res) => {
           return res.status(400).json({ error: "Missing required fields for Step 3." });
         }
 
+        //Fetch random questions and sort them in ascending order
         const questions = await fetchQuestions(selectedClass, subjectName, topicName, difficulty);
         let session;
 
-        // ✅ 1. Logged-in User Flow
+        //1. Logged-in User Flow
         if (userId) {
           validateToken(token, userId);
 
@@ -99,7 +100,7 @@ exports.quizStart = async (req, res) => {
             },
           });
         }
-        // ✅ 2. Guest User Flow
+        //2. Guest User Flow
         else {
           session = await prisma.guestSession.create({
             data: {
@@ -115,7 +116,7 @@ exports.quizStart = async (req, res) => {
         return res.json({
           success: true,
           sessionId: session.id,
-          questions: formatQuestions(questions),
+          questions: formatQuestions(questions), // Return formatted questions
         });
 
       default:
