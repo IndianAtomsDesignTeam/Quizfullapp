@@ -6,6 +6,7 @@ const authRouter = require("./routes/authRouter");
 const bodyParser = require("body-parser");
 const submitQuiz = require("./routes/quizSubmit");
 const quizResult = require("./routes/quizResult");
+const subjectRoutes = require("./routes/processBar");
 const app = express();
 const prisma = new PrismaClient();
 
@@ -17,6 +18,7 @@ app.use(authRouter);
 app.use(QuizStart);
 app.use(submitQuiz);
 app.use(quizResult);
+app.use("/api", subjectRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 3000;

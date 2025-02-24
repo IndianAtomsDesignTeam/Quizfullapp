@@ -97,7 +97,7 @@
     subjectName String
     topicName   String
     @@unique([className, subjectName, topicName])                 // Prevent duplicate topics
-  }
+  } 
 
   //Guest User Models (For Not Logged-in Users)
 
