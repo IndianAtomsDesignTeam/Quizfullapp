@@ -1,126 +1,127 @@
-  generator client {
-    provider = "prisma-client-js"
-  }
+generator client {
+  provider = "prisma-client-js"
+}
 
-  datasource db {
-    provider  = "postgresql"
-    url       = env("DATABASE_URL")
-    directUrl = env("DIRECT_URL")
-  }
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
 
-  // User Model
-  model user {
-    id            String         @id @default(uuid())
-    name          String         @db.VarChar(100)
-    email         String         @unique @db.VarChar(100)
-    studentClass  String         @db.VarChar(100)
-    password      String         @db.VarChar(100)
-    dream         String         @db.VarChar(100)
-    school        String         @db.VarChar(100)
-    number        String         @db.VarChar(15)
-    createdAt     DateTime       @default(now())
-    updatedAt     DateTime       @updatedAt
-    // Relations
-    quizzes       quiz[]                                          
-    sessions      session[]       @relation("UserSessions")        // Relation to user's quiz sessions
-    userQuestions userQuestion[]                                   
-  }
+// User Model
+model user {
+  id            String         @id @default(uuid())
+  name          String         @db.VarChar(100)
+  email         String         @unique @db.VarChar(100)
+  studentClass  String         @db.VarChar(100)
+  password      String         @db.VarChar(100)
+  dream         String         @db.VarChar(100)
+  school        String         @db.VarChar(100)
+  number        String         @db.VarChar(15)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  // Relations
+  quizzes       quiz[]
+  sessions      session[]      @relation("UserSessions") // Relation to user's quiz sessions
+  userQuestions userQuestion[]
+}
 
+// 📋 Question Model (Shared for Both Users)
+model question {
+  id           Int    @id @default(autoincrement()) // Unique question ID
+  qno          Int
+  question     String
+  optiona      String
+  optionb      String
+  optionc      String
+  optiond      String
+  answer       String
+  explaination String
+  toughness    String
+  topic        String
+  class        String
+  subject      String
 
-  // 📋 Question Model (Shared for Both Users)
-  model question {
-    id             Int                @id @default(autoincrement()) // Unique question ID
-    qno            Int
-    question       String
-    optiona        String
-    optionb        String
-    optionc        String
-    optiond        String
-    answer         String
-    explaination   String
-    toughness      String
-    topic          String
-    class          String
-    subject        String
+  // Relations
+  userQuestions  userQuestion[] // Relation to logged-in user answers
+  guestQuestions guestUserQuestion[] // Relation to guest user answers
+}
 
-    // Relations
-    userQuestions  userQuestion[]                                  // Relation to logged-in user answers
-    guestQuestions guestUserQuestion[]                             // Relation to guest user answers
-  }
+//Quiz Model (For Logged-in Users)
+model quiz {
+  id        String   @id @default(uuid())
+  title     String?
+  questions Json // Store questions in JSON format
+  userId    String? // Nullable for public quizzes
+  isPublic  Boolean  @default(false) // For guest-accessible quizzes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // Relation
+  user      user?    @relation(fields: [userId], references: [id])
+}
 
-  //Quiz Model (For Logged-in Users)
-  model quiz {
-    id         String    @id @default(uuid())
-    title      String?
-    questions  Json                                         // Store questions in JSON format
-    userId     String?                                      // Nullable for public quizzes
-    isPublic   Boolean   @default(false)                    // For guest-accessible quizzes
-    createdAt  DateTime  @default(now())
-    updatedAt  DateTime  @updatedAt
-    // Relation
-    user       user?     @relation(fields: [userId], references: [id])
-  }
+//Session Model (For Logged-in Users)
+model session {
+  id          String         @id @default(uuid())
+  submitted   Boolean        @default(false)
+  userId      String
+  timeTaken   Int? // 
+  streak      Int? // 
+  pace        Float? // 
+  achievement Float? // 
+  accuracy    Float? // 
+  createdAt   DateTime       @default(now())
+  user        user           @relation(fields: [userId], references: [id], name: "UserSessions")
+  questions   userQuestion[]
+}
 
-  //Session Model (For Logged-in Users)
-  model session {
-    id            String    @id @default(uuid())
-    submitted     Boolean   @default(false)
-    userId        String
-    timeTaken     Int?       // 
-    streak        Int?       // 
-    pace          Float?     // 
-    achievement   Float?     // 
-    accuracy      Float?     // 
-    createdAt     DateTime   @default(now())
-    user        user       @relation(fields: [userId], references: [id], name: "UserSessions")
-    questions     userQuestion[]
-  }
+//User Question Model (For Logged-in Users)
+model userQuestion {
+  id         Int      @id @default(autoincrement())
+  sessionId  String // Foreign key to session
+  questionId Int // Foreign key to question
+  userId     String // Foreign key to user
+  userAnswer String? // Nullable for unanswered questions
+  isCorrect  Boolean? // Nullable until evaluated
+  // Relations
+  question   question @relation(fields: [questionId], references: [id])
+  session    session  @relation(fields: [sessionId], references: [id])
+  user       user     @relation(fields: [userId], references: [id])
+}
 
-  //User Question Model (For Logged-in Users)
-  model userQuestion {
-    id         Int       @id @default(autoincrement())
-    sessionId  String                                             // Foreign key to session
-    questionId Int                                                // Foreign key to question
-    userId     String                                             // Foreign key to user
-    userAnswer String?                                            // Nullable for unanswered questions
-    isCorrect  Boolean?                                           // Nullable until evaluated
-    // Relations
-    question   question   @relation(fields: [questionId], references: [id])
-    session    session    @relation(fields: [sessionId], references: [id])
-    user       user       @relation(fields: [userId], references: [id])
-  }
+//Curriculum Model (For Structuring Quizzes)
+model curriculum {
+  id            Int     @id @default(autoincrement())
+  className     String
+  subjectName   String
+  topicName     String?
+  subTopicName  String?
 
-  //Curriculum Model (For Structuring Quizzes)
-  model curriculum {
-    id          Int    @id @default(autoincrement())
-    className   String
-    subjectName String
-    topicName   String
-    @@unique([className, subjectName, topicName])                 // Prevent duplicate topics
-  } 
+  @@unique([className, subjectName, topicName, subTopicName])
+}
+//Guest User Models (For Not Logged-in Users)
 
-  //Guest User Models (For Not Logged-in Users)
+// Guest Session Table
+model guestSession {
+  id             String              @id @default(uuid())
+  submitted      Boolean             @default(false)
+  timeTaken      Int?
+  streak         Int?
+  pace           Float?
+  achievement    Float?
+  accuracy       Float?
+  createdAt      DateTime            @default(now())
+  guestQuestions guestUserQuestion[]
+}
 
-  // Guest Session Table
-  model guestSession {
-    id            String    @id @default(uuid())
-    submitted     Boolean   @default(false)
-    timeTaken     Int?       
-    streak        Int?       
-    pace          Float?     
-    achievement   Float?     
-    accuracy      Float?     
-    createdAt     DateTime   @default(now())
-    guestQuestions guestUserQuestion[]
-  }
-  // Guest User Question Table
-  model guestUserQuestion {
-    id          Int          @id @default(autoincrement())
-    sessionId   String                                            // Foreign key to guestSession
-    questionId  Int                                               // Foreign key to question
-    userAnswer  String?                                           // Nullable initially
-    isCorrect   Boolean?                                          // Nullable until evaluated
-    // Relations
-    session     guestSession @relation(fields: [sessionId], references: [id])
-    question    question     @relation(fields: [questionId], references: [id])
-  }
+// Guest User Question Table
+model guestUserQuestion {
+  id         Int          @id @default(autoincrement())
+  sessionId  String // Foreign key to guestSession
+  questionId Int // Foreign key to question
+  userAnswer String? // Nullable initially
+  isCorrect  Boolean? // Nullable until evaluated
+  // Relations
+  session    guestSession @relation(fields: [sessionId], references: [id])
+  question   question     @relation(fields: [questionId], references: [id])
+}

@@ -23,7 +23,7 @@ async function fetchSubjectProgress(req, res) {
 
     // Step 2: Get attempted topics per subject
     const attemptedTopics = await prisma.userQuestion.findMany({
-      where: { userId: userId },
+      where: { userId: userId }, 
       include: { question: true },
     });
 
