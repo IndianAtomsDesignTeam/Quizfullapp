@@ -7,6 +7,7 @@ const bodyParser = require("body-parser");
 const submitQuiz = require("./routes/quizSubmit");
 const quizResult = require("./routes/quizResult");
 const subjectRoutes = require("./routes/processBar");
+require("dotenv").config();
 const app = express();
 const prisma = new PrismaClient();
 

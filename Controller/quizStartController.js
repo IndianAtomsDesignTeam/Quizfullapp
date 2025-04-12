@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const prisma = new PrismaClient();
 const generateQuizForTopic = require("../Controller/QuestionGeneration");
 
-// 🔐 Helper: Validate Token
+// 🔐 Token Validator
 const validateToken = (token, userId) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -16,12 +16,11 @@ const validateToken = (token, userId) => {
   }
 };
 
-// 📋 Helper: Fetch Questions by criteria
+// 🧠 Fetch Questions (still using old question schema)
 const fetchQuestions = async (
   selectedClass,
   subjectName,
   topicName,
-  subTopicName,
   difficulty,
   limit = 20
 ) => {
@@ -30,7 +29,6 @@ const fetchQuestions = async (
     WHERE "class" = ${selectedClass}
       AND "subject" = ${subjectName}
       AND "topic" = ${topicName}
-      ${subTopicName ? prisma.sql`AND "subTopic" = ${subTopicName}` : prisma.sql``}
       AND "toughness" = ${difficulty}
     ORDER BY RANDOM()
     LIMIT ${limit};
@@ -43,7 +41,7 @@ const fetchQuestions = async (
   return questions.sort((a, b) => a.id - b.id);
 };
 
-// 🧾 Helper: Format for response
+// 🎁 Format Questions
 const formatQuestions = (questions) =>
   questions.map((q, index) => ({
     qno: index + 1,
@@ -55,7 +53,7 @@ const formatQuestions = (questions) =>
     optiond: q.optiond,
   }));
 
-// 🚀 Main Quiz Controller
+// 🚀 Quiz Start Controller (3-Step Flow)
 exports.quizStart = async (req, res) => {
   try {
     const {
@@ -63,7 +61,6 @@ exports.quizStart = async (req, res) => {
       selectedClass,
       subjectName,
       topicName,
-      subTopicName,
       difficulty,
       title,
       userId,
@@ -71,10 +68,12 @@ exports.quizStart = async (req, res) => {
     } = req.body;
 
     switch (step) {
+      // Step 1: Get Subjects
       case 1:
         if (!selectedClass) {
           return res.status(400).json({ error: "Class is required for Step 1." });
         }
+
         const subjects = await prisma.curriculum.findMany({
           where: { className: selectedClass },
           distinct: ["subjectName"],
@@ -82,10 +81,12 @@ exports.quizStart = async (req, res) => {
         });
         return res.json(subjects);
 
+      // Step 2: Get Topics
       case 2:
         if (!selectedClass || !subjectName) {
           return res.status(400).json({ error: "Class and Subject are required for Step 2." });
         }
+
         const topics = await prisma.curriculum.findMany({
           where: { className: selectedClass, subjectName },
           distinct: ["topicName"],
@@ -93,34 +94,24 @@ exports.quizStart = async (req, res) => {
         });
         return res.json(topics);
 
+      // Step 3: Generate Quiz
       case 3:
-        if (!selectedClass || !subjectName || !topicName) {
-          return res.status(400).json({ error: "Missing fields for Step 3." });
-        }
-        const subTopics = await prisma.curriculum.findMany({
-          where: { className: selectedClass, subjectName, topicName },
-          distinct: ["subTopicName"],
-          select: { subTopicName: true },
-        });
-        return res.json(subTopics);
-
-      case 4:
         if (!selectedClass || !subjectName || !topicName || !difficulty || !title) {
-          return res.status(400).json({ error: "Missing required fields for Step 4." });
+          return res.status(400).json({ error: "Missing required fields for Step 3." });
         }
 
-        await generateQuizForTopic(topicName); // Optional AI/content generation hook
+        await generateQuizForTopic(topicName); // Optional logic
 
         const questions = await fetchQuestions(
           selectedClass,
           subjectName,
           topicName,
-          subTopicName,
           difficulty
         );
 
         let session;
 
+        // Logged-in user
         if (userId) {
           validateToken(token, userId);
 
@@ -136,6 +127,7 @@ exports.quizStart = async (req, res) => {
             },
           });
         } else {
+          // Guest user
           session = await prisma.guestSession.create({
             data: {
               guestQuestions: {
@@ -153,6 +145,7 @@ exports.quizStart = async (req, res) => {
           questions: formatQuestions(questions),
         });
 
+      // Invalid Step
       default:
         return res.status(400).json({ error: "Invalid step." });
     }
